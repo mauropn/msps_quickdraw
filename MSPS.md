@@ -43,7 +43,7 @@ npx vitest run packages/core
 | 4 | Canetas (esferográfica, lápis) — `pens.js` + barra própria no msps_ui | feita |
 | 5 | Canetas salvas (tipo + cor + espessura + opacidade, troca com um toque) — só msps_ui + API (`/api/notes/preferences/handwriting-pens`), a lib não muda | feita |
 | 6 | Borracha (parcial, traço inteiro, ponta-borracha da caneta) — `erase.js` | feita (em teste) |
-| 7 | Performance (traço vivo fora do store, cache dos traços prontos, eventos previstos) | |
+| 7 | Performance (traço vivo fora do store, cache da tela, contorno incremental, eventos previstos, diagnóstico) — `fastink.js`, `liveink.js`, `diagnostics.js` | feita (em teste) |
 | 8 | Acabamento (miniatura, simplificação/compactação dos traços; impressão já adiantada) | |
 
 ## Recursos do fork
@@ -65,3 +65,16 @@ npx vitest run packages/core
   inteiras. O gesto todo é um passo de desfazer. Traço girado vira pedaços sem rotação (mesmo lugar).
   A ponta-borracha da caneta (`buttons & 32`) apaga com qualquer ferramenta. Hooks em `editor.js`
   (`_pointerDown`, `_beginErase`/`_extendErase`/`_eraseAt`/`_endErase`, overlay).
+- **Escrita rápida** (`src/fastink.js`, opção `fastInk` do `Editor`, desligada por padrão): durante o traço
+  os pontos ficam num buffer da sessão (`session.live`) e vão para o store a cada `LIVE_COMMIT_MS` e no fim
+  (o desfazer continua um passo só); o resto da tela vira uma imagem em cache (refeita só se câmera, tamanho,
+  tema, papel ou outro shape mudarem) e cada quadro desenha só o traço em andamento por cima. Pontos
+  previstos (`getPredictedEvents`, `predictInk`) estendem a ponta só na tela. O traço salvo é idêntico ao do
+  modo normal (`test/fastink.test.js`). Hooks em `editor.js` marcados `// msps:`; `renderScene` ganhou `skipId`
+  e `drawShape` ganhou `opts.inkPath`.
+- **Contorno incremental** (`src/liveink.js`, `createLiveOutline`): o algoritmo do perfect-freehand em partes —
+  guarda o que não muda mais e processa só a ponta. Resultado igual a `strokeOutline` número a número
+  (`test/liveink.test.js`). Num traço de 2000 pontos: ~0,15 ms por quadro contra ~4,5 ms.
+- **Baixa latência** (opção `lowLatency`): canvas com `desynchronized: true` onde o navegador suporta.
+- **Diagnóstico** (`src/diagnostics.js`, `editor.setDiagnostics(true)`): painel no canto com quadros/s, tempo
+  do quadro, caneta→quadro e tamanho do traço. No MSPowerSearch: `?hwdiag=1` na URL.

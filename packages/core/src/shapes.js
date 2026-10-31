@@ -347,7 +347,8 @@ function inkReach(size, pen) {
 
 // Draw one shape. ctx is already in PAGE space (camera applied by caller);
 // this applies the shape's own translate/rotate.
-// opts: { theme, store, zoom, onAssetLoad, ghost }
+// opts: { theme, store, zoom, onAssetLoad, ghost, inkPath }
+// msps: inkPath — contorno já pronto (escrita rápida, ver fastink.js)
 export function drawShape(ctx, shape, opts) {
   const { theme } = opts
   const p = shape.props
@@ -371,7 +372,7 @@ export function drawShape(ctx, shape, opts) {
       // 'draw' dash = pressure ink; solid/dashed/dotted render the same
       // smoothed centerline at an even width so the line style reads true
       if (p.pen) { // msps: canetas de escrita (sempre tinta de pressão)
-        fillPen(ctx, drawPath(shape), p.pen, col.stroke, p)
+        fillPen(ctx, opts.inkPath || drawPath(shape), p.pen, col.stroke, p)
       } else if (p.dash && p.dash !== 'draw') {
         ctx.strokeStyle = col.stroke
         strokeStyled(ctx, p.dash, SIZES[p.size])
@@ -383,7 +384,7 @@ export function drawShape(ctx, shape, opts) {
         ctx.setLineDash([])
       } else {
         ctx.fillStyle = col.stroke
-        ctx.fill(drawPath(shape))
+        ctx.fill(opts.inkPath || drawPath(shape)) // msps: inkPath
       }
       break
     }

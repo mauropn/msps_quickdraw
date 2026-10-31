@@ -52,6 +52,15 @@ export const ERASER_SIZE_IDS: EraserSizeId[]
 /** ponta-borracha da caneta (buttons & 32) */
 export function isPenEraser(e: { pointerType: string; buttons?: number; button?: number }): boolean
 
+// msps: escrita rápida — de quanto em quanto tempo (ms) o traço em andamento vai para o store
+export const LIVE_COMMIT_MS: number
+/** msps: contorno incremental de um traço que cresce; igual a strokeOutline com as mesmas opções */
+export function createLiveOutline(options?: Record<string, unknown>): {
+  /** mutableFrom: primeiro ponto cru que ainda pode mudar (padrão: o último) */
+  outline(pts: number[], mutableFrom?: number): number[]
+  stats(): { stable: number; outline: number }
+}
+
 export interface Camera { x: number; y: number; z: number }
 
 export interface Styles {
@@ -267,6 +276,12 @@ export interface EditorOptions {
   geoKind?: GeoId
   /** msps: papel de caderno; quando definido, substitui a grade */
   paper?: Paper | null
+  /** msps: escrita rápida — traço em andamento fora do store, cache da tela, contorno incremental */
+  fastInk?: boolean
+  /** msps: canvas desincronizado (menos atraso entre a caneta e a tela, onde o navegador permite) */
+  lowLatency?: boolean
+  /** msps: com fastInk, estende a ponta com os pontos previstos do navegador (padrão true) */
+  predictInk?: boolean
 }
 
 export type EditorEvent =
@@ -327,6 +342,12 @@ export class Editor {
   setEraser(opts: { mode?: EraserMode; size?: EraserSizeId }): void
   eraserMode: EraserMode
   eraserSize: EraserSizeId
+  /** msps: painel de diagnóstico (quadros/s, tempo do quadro, caneta→quadro) */
+  setDiagnostics(on: boolean): void
+  readonly diagnostics: boolean
+  fastInk: boolean
+  lowLatency: boolean
+  predictInk: boolean
   setReadonly(ro: boolean): void
   setPenMode(on: boolean): void
   setStyle<K extends keyof Styles>(key: K, value: Styles[K]): void

@@ -13,6 +13,8 @@ import { boundsUnion, boundsExpand, boundsContain, clamp, rotWith } from './geom
 import { drawPaper, normalizePaper, paperFitCamera, paperExportBounds } from './paper.js' // msps: papel de caderno
 import { isPenId } from './pens.js' // msps: canetas de escrita
 import { ERASER_MODES, ERASER_SIZES, isPenEraser, isInkShape, cutInkPoints, inkPiecesToShapes } from './erase.js' // msps: borracha parcial
+import { createLiveInk, extendLiveInk, commitLiveInk, endLiveInk, noteSceneChange, renderLiveInk } from './fastink.js' // msps: escrita rápida
+import { createDiagnostics, diagInput, diagFrame, drawDiagnostics } from './diagnostics.js' // msps: diagnóstico
 
 const ZOOM_MIN = 0.05
 const ZOOM_MAX = 8
@@ -38,7 +40,8 @@ const bendMidpoint = (pr) => {
 }
 
 export class Editor {
-  constructor({ container, store, theme = 'light', grid = 'lines', readonly = false, camera, styles, geoKind, paper } = {}) {
+  // msps: fastInk (escrita rápida, ver fastink.js), lowLatency (canvas desincronizado), predictInk (pontos previstos)
+  constructor({ container, store, theme = 'light', grid = 'lines', readonly = false, camera, styles, geoKind, paper, fastInk = false, lowLatency = false, predictInk = true } = {}) {
     this.container = container
     this.store = store || new Store()
     this.theme = themeOf(theme)
@@ -65,6 +68,13 @@ export class Editor {
     // msps: borracha — 'stroke' (traço inteiro, como a lib) ou 'partial' (só o pedaço tocado)
     this.eraserMode = 'stroke'
     this.eraserSize = 'm'
+    // msps: escrita rápida e diagnóstico
+    this.fastInk = !!fastInk
+    this.lowLatency = !!lowLatency
+    this.predictInk = predictInk !== false
+    this._sceneVer = 0
+    this._sceneCache = null
+    this._diag = null
     this._penSeen = false
     this._penDown = false
     this._events = new Map()
@@ -83,9 +93,15 @@ export class Editor {
     this.overlay.className = 'qd-overlay'
     container.prepend(this.overlay)
     container.prepend(this.canvas)
+    // msps: baixa latência — o navegador mostra o canvas sem esperar a página
+    // (só vale no primeiro getContext; onde não existe, é ignorado)
+    if (this.lowLatency) {
+      try { this.canvas.getContext('2d', { desynchronized: true }) } catch { /* sem canvas (testes) */ }
+    }
 
     this._bind()
-    this._unsubStore = this.store.listen(() => {
+    this._unsubStore = this.store.listen((diff) => {
+      if (diff) noteSceneChange(this, diff) // msps: cache da escrita rápida
       this._pruneSelection()
       this.requestRender()
       this.emit('change')
@@ -357,6 +373,13 @@ export class Editor {
     this.emit('paper')
   }
   // msps: modo e tamanho da borracha ({ mode: 'stroke'|'partial', size: 's'|'m'|'l' })
+  // msps: painel de diagnóstico (quadros/s, tempo do quadro, caneta→quadro)
+  setDiagnostics(on) {
+    this._diag = on ? (this._diag || createDiagnostics()) : null
+    this.requestRender()
+  }
+  get diagnostics() { return !!this._diag }
+
   setEraser({ mode, size } = {}) {
     if (ERASER_MODES.includes(mode)) this.eraserMode = mode
     if (size in ERASER_SIZES) this.eraserSize = size
@@ -633,6 +656,7 @@ export class Editor {
 
   _pointerMove(e) {
     if (this.readonly) return
+    if (this._diag && this.session) diagInput(this._diag, e) // msps: diagnóstico
     if (this._pointers.has(e.pointerId)) this._pointers.set(e.pointerId, this._evPoint(e))
     const ss = this.session
     if (!ss) {
@@ -796,6 +820,7 @@ export class Editor {
     if (ss.type === 'drawing') {
       this.store.remove([ss.id])
       this.store.endBatch()
+      if (ss.live) endLiveInk(this) // msps: escrita rápida
     } else if (ss.type === 'lineish' || ss.type === 'geo-create') {
       this.store.remove([ss.id])
       this.store.endBatch()
@@ -832,9 +857,11 @@ export class Editor {
     }
     this.store.put(shape)
     this.session = { type: 'drawing', id, last: p, zoom: this.camera.z }
+    if (this.fastInk) this.session.live = createLiveInk(shape) // msps: escrita rápida
   }
   _extendDraw(e, p) {
     const ss = this.session
+    if (ss.live) return extendLiveInk(this, e) // msps: escrita rápida
     const shape = this.store.get(ss.id)
     if (!shape) { this.session = null; return }
     // every move of a mouse is a point; a pen's moves under a screen pixel
@@ -844,9 +871,9 @@ export class Editor {
     // coalesced points ride along — extra fidelity is free
     const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e]
     const pts = shape.props.pts.slice()
+    const rect = this.container.getBoundingClientRect() // msps: uma medida por evento, não por ponto agrupado
     for (const ce of evs.length ? evs : [e]) {
-      const r = this._evPoint(ce)
-      const cp = this.screenToPage(r.x, r.y)
+      const cp = this.screenToPage(ce.clientX - rect.left, ce.clientY - rect.top)
       // to the hundredth of a pixel: finer is invisible, and costs on the wire
       const x = hundredth(cp.x - shape.x), y = hundredth(cp.y - shape.y), z = hundredth(ce.pressure || 0.5)
       const k = pts.length - 3
@@ -865,9 +892,11 @@ export class Editor {
   }
   _endDraw() {
     const ss = this.session
+    if (ss.live) commitLiveInk(this) // msps: escrita rápida — os pontos finais
     if (this.store.get(ss.id)) this.store.update(ss.id, { props: { done: true } })
     this.store.endBatch()
     this.session = null
+    if (ss.live) endLiveInk(this)
   }
 
   // ---- eraser --------------------------------------------------------------
@@ -1711,7 +1740,8 @@ export class Editor {
 
   // content-only pass (paper + shapes), reused by the screen, the capture
   // canvas and image export
-  renderScene(ctx, cam, w, h, { dpr = 1, background = true, hideEditing = false } = {}) {
+  // msps: skipId — deixa um shape de fora (o traço da escrita rápida, desenhado por cima)
+  renderScene(ctx, cam, w, h, { dpr = 1, background = true, hideEditing = false, skipId = null } = {}) {
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     if (background) {
       ctx.fillStyle = this.theme.background
@@ -1725,6 +1755,7 @@ export class Editor {
     const pad = 64 / cam.z
     const vis = boundsExpand(vp, pad)
     for (const s of this.shapesSorted()) {
+      if (s.id === skipId) continue
       const pb = pageBounds(s)
       if (pb.x + pb.w < vis.x || pb.x > vis.x + vis.w || pb.y + pb.h < vis.y || pb.y > vis.y + vis.h) continue
       drawShape(ctx, s, {
@@ -1864,8 +1895,16 @@ export class Editor {
       }
     }
     const ctx = this.canvas.getContext('2d')
-    this.renderScene(ctx, this.camera, w, h, { dpr, hideEditing: true })
+    const t0 = this._diag ? performance.now() : 0
+    // msps: escrita rápida — cache da tela + só o traço em andamento
+    if (!(this.fastInk && renderLiveInk(this, ctx, w, h, dpr))) {
+      this.renderScene(ctx, this.camera, w, h, { dpr, hideEditing: true })
+    }
     this._renderOverlay(w, h, dpr)
+    if (this._diag) { // msps: diagnóstico
+      diagFrame(this._diag, t0, performance.now())
+      drawDiagnostics(this.overlay.getContext('2d'), this._diag, this, dpr)
+    }
     this._renderCapture()
     if (this.editing) this._layoutTextEditor()
   }
