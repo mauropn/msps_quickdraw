@@ -34,6 +34,14 @@ export const PAPER_SPACINGS: Record<PaperSpacingId, number>
 export const PAPER_SPACING_IDS: PaperSpacingId[]
 export const PAPER_MARGIN_X: number
 export function normalizePaper(paper: Paper | null | undefined): Required<Paper> | null
+
+// msps: canetas de escrita — traço 'draw' com `props.pen`; sem pen = tinta original
+export type PenId = 'ballpoint' | 'pencil'
+export const PEN_IDS: PenId[]
+export function penInkOptions(pen: PenId, width: number, opts?: { isPen?: boolean; done?: boolean }): Record<string, unknown>
+/** opacidade do grafite pela pressão média do traço */
+export function pencilAlpha(pts: number[], isPen: boolean): number
+
 export interface Camera { x: number; y: number; z: number }
 
 export interface Styles {
@@ -44,6 +52,8 @@ export interface Styles {
   font: FontId
   /** 0.1–1; shapes drawn under 1 keep it as their own `opacity` prop */
   opacity: number
+  /** msps: caneta de escrita do lápis 'draw'; ausente = tinta original */
+  pen?: PenId
 }
 
 export type ShapeType =

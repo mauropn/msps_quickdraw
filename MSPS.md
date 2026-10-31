@@ -39,8 +39,8 @@ npx vitest run packages/core
 |---|---|---|
 | 1 | Tipo de nota "Escrita à mão" com a lib como veio | feita |
 | 2 | Ligar o MSPowerSearch neste fork | feita |
-| 3 | Papel de caderno: pautas presas ao papel (Estreito/Médio/Largo), margem vermelha — `paper.js` | feita (em teste) |
-| 4 | Canetas (esferográfica, lápis) + barra própria no msps_ui | |
+| 3 | Papel de caderno: pautas presas ao papel (Estreito/Médio/Largo), margem vermelha — `paper.js` | feita |
+| 4 | Canetas (esferográfica, lápis) — `pens.js` + barra própria no msps_ui | feita (em teste) |
 | 5 | Canetas salvas (tipo + cor + espessura + opacidade, troca com um toque) | |
 | 6 | Borracha (parcial, traço inteiro, ponta-borracha da caneta) | |
 | 7 | Performance (traço vivo fora do store, cache dos traços prontos, eventos previstos) | |
@@ -52,3 +52,10 @@ npx vitest run packages/core
   `paper = { lines: 'none'|'narrow'|'medium'|'wide', margin: boolean, marginX?: number }`.
   Espaçamentos em px do papel: 24 / 30 / 40 (`wide` = o `ruled` original). Quando há papel,
   ele substitui a grade adaptativa da lib (hook único em `Editor._drawGrid`).
+  Com papel, `fitContent()` enquadra pelo começo da folha (`paperFitCamera`): x = 0 na borda
+  esquerda, sem centralizar — senão, em tela larga, a margem ia parar no meio.
+- **Canetas de escrita** (`src/pens.js`): `editor.setStyle('pen', 'ballpoint' | 'pencil')`; o próximo
+  traço 'draw' grava `props.pen` (e não grava `dash`). Traço sem `pen` = tinta original.
+  Esferográfica: fina, pouca variação com a pressão, pouco atraso. Lápis: mais largo, grão de
+  grafite em pixels da tela, mais escuro com mais pressão (`pencilAlpha`). Hooks em `shapes.js`
+  (`drawPath`, `inkReach`, `drawShape`) e em `editor.js` (`_beginDraw`, `setStyle`, `currentStyles`).

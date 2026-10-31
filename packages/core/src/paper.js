@@ -29,6 +29,38 @@ export function normalizePaper(paper) {
   return { lines, margin, marginX }
 }
 
+/**
+ * Câmera para enquadrar a escrita como num caderno: o começo do papel (x = 0, antes da
+ * margem) fica na borda esquerda da tela — nunca centralizado, senão numa tela larga a
+ * margem iria parar no meio. Só reduz o zoom se a escrita não couber na largura;
+ * na altura o papel rola, como uma folha. `bounds` = limites da escrita (ou null).
+ */
+export function paperFitCamera(bounds, w, h, paper, { maxZoom = 1, minZoom = 0.05 } = {}) {
+  const p = normalizePaper(paper) || normalizePaper({})
+  const spacing = PAPER_SPACINGS[p.lines] || PAPER_SPACINGS.medium
+  if (!bounds) return { x: 0, y: 0, z: Math.min(1, maxZoom) }
+  const left = Math.min(0, bounds.x)
+  const right = Math.max(bounds.x + bounds.w, p.marginX)
+  const z = Math.max(minZoom, Math.min(maxZoom, (w - 16) / (right - left)))
+  // do topo do papel, se a escrita começa no começo da folha; senão, um pouco acima dela
+  const t = bounds.y - spacing
+  const top = bounds.y >= 0 && t < h / z / 2 ? 0 : t
+  return { x: -left || 0, y: -top || 0, z }
+}
+
+/**
+ * Área exportada (PNG/impressão) com papel: começa no começo da folha (margem visível) e,
+ * se a escrita começa perto do topo, no topo da folha. `b` = limites da escrita já com folga.
+ */
+export function paperExportBounds(b, paper) {
+  const p = normalizePaper(paper)
+  if (!p || !b) return b
+  const spacing = PAPER_SPACINGS[p.lines] || PAPER_SPACINGS.medium
+  const x = Math.min(0, b.x)
+  const y = b.y > 0 && b.y < spacing * 6 ? 0 : b.y
+  return { x, y, w: b.x + b.w - x, h: b.y + b.h - y }
+}
+
 /** Pautas visíveis em px de dispositivo: [{ y, alpha }], já com o desbaste de zoom aplicado. */
 export function paperRuleRows(paper, cam, H, dpr) {
   const p = normalizePaper(paper)

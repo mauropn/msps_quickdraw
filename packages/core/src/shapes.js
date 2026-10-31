@@ -14,6 +14,7 @@ import {
   boundsIntersect, boundsContain,
 } from './geometry.js'
 import { strokeOutline, inkOptions } from './freehand.js'
+import { penInkOptions, penReach, fillPen } from './pens.js' // msps: canetas de escrita
 
 export const NOTE_W = 200
 const NOTE_PAD = 20
@@ -31,7 +32,7 @@ export function localBounds(shape) {
     case 'draw':
     case 'highlight': {
       const b = ptsBounds(p.pts, 3)
-      const m = shape.type === 'highlight' ? SIZES[p.size] * HIGHLIGHT_SCALE / 2 : inkReach(p.size)
+      const m = shape.type === 'highlight' ? SIZES[p.size] * HIGHLIGHT_SCALE / 2 : inkReach(p.size, p.pen) // msps: pen
       return { x: b.x - m, y: b.y - m, w: b.w + m * 2, h: b.h + m * 2 }
     }
     case 'arrow':
@@ -328,7 +329,9 @@ function drawPath(shape) {
     if (hit) return hit
   }
   const path = new Path2D()
-  const outline = strokeOutline(p.pts, inkOptions(INK_SIZES[p.size], { isPen: !!p.isPen, done: !!p.done }))
+  const ink = { isPen: !!p.isPen, done: !!p.done }
+  // msps: traço com caneta de escrita usa a tinta dela
+  const outline = strokeOutline(p.pts, p.pen ? penInkOptions(p.pen, INK_SIZES[p.size], ink) : inkOptions(INK_SIZES[p.size], ink))
   traceSmooth(path, outline, true)
   path.closePath()
   if (p.done) outlineCache.set(p, path)
@@ -337,7 +340,8 @@ function drawPath(shape) {
 
 // how far the ink can reach from its centerline: a pen's widest is a little
 // over its nominal width
-function inkReach(size) {
+function inkReach(size, pen) {
+  if (pen) return penReach(pen, INK_SIZES[size]) // msps: canetas de escrita
   return INK_SIZES[size] + 1
 }
 
@@ -366,7 +370,9 @@ export function drawShape(ctx, shape, opts) {
     case 'draw': {
       // 'draw' dash = pressure ink; solid/dashed/dotted render the same
       // smoothed centerline at an even width so the line style reads true
-      if (p.dash && p.dash !== 'draw') {
+      if (p.pen) { // msps: canetas de escrita (sempre tinta de pressão)
+        fillPen(ctx, drawPath(shape), p.pen, col.stroke, p)
+      } else if (p.dash && p.dash !== 'draw') {
         ctx.strokeStyle = col.stroke
         strokeStyled(ctx, p.dash, SIZES[p.size])
         ctx.beginPath()
@@ -515,7 +521,7 @@ export function hitShape(shape, px, py, tol, store) {
   const p = shape.props
   switch (shape.type) {
     case 'draw':
-      return distToPolyline(l.x, l.y, p.pts, 3) <= tol + inkReach(p.size)
+      return distToPolyline(l.x, l.y, p.pts, 3) <= tol + inkReach(p.size, p.pen)
     case 'highlight':
       return distToPolyline(l.x, l.y, p.pts, 3) <= tol + (SIZES[p.size] * HIGHLIGHT_SCALE) / 2
     case 'geo': {

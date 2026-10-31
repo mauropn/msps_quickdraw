@@ -4,7 +4,7 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, it, expect } from 'vitest'
 import {
-  PAPER_SPACINGS, PAPER_SPACING_IDS, PAPER_MARGIN_X, normalizePaper, paperRuleRows,
+  PAPER_SPACINGS, PAPER_SPACING_IDS, PAPER_MARGIN_X, normalizePaper, paperRuleRows, paperFitCamera, paperExportBounds,
 } from '../src/paper.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -38,6 +38,26 @@ describe('paper', () => {
     const rows = paperRuleRows({ lines: 'narrow' }, { x: 0, y: 0, z: 0.05 }, 1000, 1)
     const full = rows.filter((r) => r.alpha === 1)
     expect(full[1].y - full[0].y).toBeGreaterThanOrEqual(7)
+  })
+
+  it('enquadrar com papel: começo da folha na esquerda, sem centralizar em tela larga', () => {
+    const cam = paperFitCamera({ x: 80, y: 20, w: 300, h: 100 }, 1600, 600, { lines: 'medium' })
+    expect(cam).toEqual({ x: 0, y: 0, z: 1 })
+    // a margem fica a PAPER_MARGIN_X px da borda esquerda, qualquer que seja a largura da tela
+    expect((PAPER_MARGIN_X + cam.x) * cam.z).toBe(PAPER_MARGIN_X)
+  })
+
+  it('enquadrar com papel: escrita mais larga que a tela reduz o zoom', () => {
+    const cam = paperFitCamera({ x: 70, y: 0, w: 1000, h: 50 }, 400, 600, {})
+    expect(cam.z).toBeLessThan(1)
+    expect((70 + 1000 + cam.x) * cam.z).toBeLessThanOrEqual(400)
+  })
+
+  it('exportar com papel: a imagem começa no começo da folha (margem aparece)', () => {
+    expect(paperExportBounds({ x: 100, y: 40, w: 200, h: 80 }, {})).toEqual({ x: 0, y: 0, w: 300, h: 120 })
+    // escrita lá embaixo: não exporta a folha em branco de cima
+    expect(paperExportBounds({ x: 100, y: 2000, w: 200, h: 80 }, {}).y).toBe(2000)
+    expect(paperExportBounds({ x: 1, y: 1, w: 1, h: 1 }, null)).toEqual({ x: 1, y: 1, w: 1, h: 1 })
   })
 
   it("lines 'none' não desenha pautas", () => {

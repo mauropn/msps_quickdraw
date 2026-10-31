@@ -10,7 +10,8 @@ import {
   scaleShape, textLayout, noteLayout, NOTE_W, sampleLinePts, resetTextLayouts,
 } from './shapes.js'
 import { boundsUnion, boundsExpand, boundsContain, clamp, rotWith } from './geometry.js'
-import { drawPaper, normalizePaper } from './paper.js' // msps: papel de caderno
+import { drawPaper, normalizePaper, paperFitCamera, paperExportBounds } from './paper.js' // msps: papel de caderno
+import { isPenId } from './pens.js' // msps: canetas de escrita
 
 const ZOOM_MIN = 0.05
 const ZOOM_MAX = 8
@@ -186,6 +187,11 @@ export class Editor {
     if (this._deferFit(() => this.fitContent({ margin, maxZoom, animate, ease }))) return
     const fitNow = () => {
       const b = this.contentBounds()
+      // msps: com papel de caderno, enquadra pelo começo da folha (margem à esquerda), sem centralizar
+      if (this.paper) {
+        const { w, h } = this.viewSize()
+        return paperFitCamera(b, w, h, this.paper, { maxZoom, minZoom: ZOOM_MIN })
+      }
       if (!b || b.w <= 0 || b.h <= 0) return null
       const { w, h } = this.viewSize()
       const inset = Math.min(w, h) * margin
@@ -374,6 +380,7 @@ export class Editor {
         color: ['draw', 'highlight', 'geo', 'arrow', 'line', 'text', 'note'],
         size: ['draw', 'highlight', 'geo', 'arrow', 'line', 'text', 'note'],
         dash: ['draw', 'geo', 'arrow', 'line'],
+        pen: ['draw'], // msps: canetas de escrita
         fill: ['geo'],
         font: ['text', 'note', 'geo'],
         opacity: ALL_TYPES,
@@ -398,7 +405,7 @@ export class Editor {
     for (const id of this.selection) {
       const s = this.store.get(id)
       if (!s) continue
-      for (const k of ['color', 'size', 'dash', 'fill', 'font', 'opacity']) {
+      for (const k of ['color', 'size', 'dash', 'fill', 'font', 'opacity', 'pen']) { // msps: pen
         // shapes from before the opacity style draw fully opaque
         const v = k === 'opacity' ? s.props.opacity ?? 1 : s.props[k]
         if (v === undefined) continue
@@ -803,7 +810,9 @@ export class Editor {
         size: this.styles.size,
         // the pencil honors the line style too: 'draw' is pressure ink, the
         // others render as an even-width (dashed/dotted/solid) line
-        ...(type === 'draw' ? { dash: this.styles.dash } : {}),
+        // msps: com caneta de escrita (styles.pen), o traço leva `pen` e é sempre tinta de pressão
+        ...(type === 'draw' && isPenId(this.styles.pen) ? { pen: this.styles.pen } : {}),
+        ...(type === 'draw' && !isPenId(this.styles.pen) ? { dash: this.styles.dash } : {}),
         done: false,
         ...(e.pointerType === 'pen' ? { isPen: true } : {}),
         ...this._opacityProp(),
@@ -1614,6 +1623,8 @@ export class Editor {
     for (const s of shapes) b = boundsUnion(b, pageBounds(s))
     if (!b) return null
     b = boundsExpand(b, margin)
+    // msps: com papel, a imagem começa no começo da folha (a margem vermelha aparece)
+    if (this.paper && !ids) b = paperExportBounds(b, this.paper)
     // stay under ~24MP however big the drawing is
     const cap = Math.sqrt(24e6 / (b.w * b.h))
     const k = Math.min(scale, cap)
