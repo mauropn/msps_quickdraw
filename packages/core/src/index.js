@@ -15,6 +15,8 @@ export { strokeOutline, inkOptions } from './freehand.js'
 export { PAPER_SPACINGS, PAPER_SPACING_IDS, PAPER_MARGIN_X, normalizePaper } from './paper.js'
 // msps: canetas de escrita
 export { PEN_IDS, penInkOptions, pencilAlpha } from './pens.js'
+// msps: borracha parcial
+export { ERASER_MODES, ERASER_SIZES, ERASER_SIZE_IDS, isPenEraser } from './erase.js'
 
 import { Editor } from './editor.js'
 import { buildUI } from './ui.js'

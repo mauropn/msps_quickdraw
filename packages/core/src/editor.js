@@ -12,6 +12,7 @@ import {
 import { boundsUnion, boundsExpand, boundsContain, clamp, rotWith } from './geometry.js'
 import { drawPaper, normalizePaper, paperFitCamera, paperExportBounds } from './paper.js' // msps: papel de caderno
 import { isPenId } from './pens.js' // msps: canetas de escrita
+import { ERASER_MODES, ERASER_SIZES, isPenEraser, isInkShape, cutInkPoints, inkPiecesToShapes } from './erase.js' // msps: borracha parcial
 
 const ZOOM_MIN = 0.05
 const ZOOM_MAX = 8
@@ -61,6 +62,9 @@ export class Editor {
     // is ignored, two fingers still steer the camera. setPenMode(false) opts
     // back out; auto-arm happens only once so that choice sticks.
     this.penMode = false
+    // msps: borracha — 'stroke' (traço inteiro, como a lib) ou 'partial' (só o pedaço tocado)
+    this.eraserMode = 'stroke'
+    this.eraserSize = 'm'
     this._penSeen = false
     this._penDown = false
     this._events = new Map()
@@ -352,6 +356,12 @@ export class Editor {
     this.requestRender()
     this.emit('paper')
   }
+  // msps: modo e tamanho da borracha ({ mode: 'stroke'|'partial', size: 's'|'m'|'l' })
+  setEraser({ mode, size } = {}) {
+    if (ERASER_MODES.includes(mode)) this.eraserMode = mode
+    if (size in ERASER_SIZES) this.eraserSize = size
+    this.emit('eraser')
+  }
   setReadonly(ro) {
     this.readonly = !!ro
     if (ro) { this._cancelSession(); this._commitText(); this.setSelection([]) }
@@ -591,6 +601,8 @@ export class Editor {
     if (this.session?.type === 'pinch') return
 
     const p = this.screenToPage(s.x, s.y)
+    // msps: ponta-borracha da caneta apaga, seja qual for a ferramenta
+    if (isPenEraser(e)) return this._beginErase(p)
     if (e.button === 1 || this.spaceHeld || this.tool === 'hand') {
       this.session = { type: 'panning', last: s }
       this._syncCursor('grabbing')
@@ -861,11 +873,18 @@ export class Editor {
   // ---- eraser --------------------------------------------------------------
   _beginErase(p) {
     this.session = { type: 'erasing', hits: new Set(), trail: [p.x, p.y], last: p }
+    // msps: borracha parcial — corta os traços ao vivo; o gesto inteiro é um passo de desfazer
+    if (this.eraserMode === 'partial') {
+      this.session.partial = true
+      this.store.beginBatch()
+      this._erasePartial(p, p)
+    }
     this._eraseAt(p)
     this.requestRender()
   }
   _extendErase(p) {
     const ss = this.session
+    if (ss.partial) this._erasePartial(ss.last, p) // msps: borracha parcial
     // test along the swept segment so fast swipes don't tunnel through shapes
     const steps = Math.max(1, Math.ceil(Math.hypot(p.x - ss.last.x, p.y - ss.last.y) / (6 / this.camera.z)))
     for (let i = 1; i <= steps; i++) {
@@ -878,12 +897,29 @@ export class Editor {
   }
   _eraseAt(p) {
     const hit = this.hitTest(p.x, p.y)
-    if (hit) this.session.hits.add(hit.id)
+    // msps: na borracha parcial os traços de tinta já foram cortados; o resto sai inteiro
+    if (hit && !(this.session.partial && isInkShape(hit))) this.session.hits.add(hit.id)
+  }
+  // msps: borracha parcial — corta os traços de tinta pela cápsula a→b
+  _erasePartial(a, b) {
+    const r = ERASER_SIZES[this.eraserSize] / this.camera.z
+    this.store.transact(() => {
+      for (const shape of this.store.shapes()) {
+        if (!isInkShape(shape)) continue
+        const pieces = cutInkPoints(shape, a, b, r)
+        if (!pieces) continue
+        if (!pieces.length) { this.store.remove([shape.id]); continue }
+        for (const rec of inkPiecesToShapes(shape, pieces, newId)) this.store.put(rec)
+      }
+    })
+    this._pruneSelection()
   }
   _endErase() {
-    const hits = [...this.session.hits]
+    const ss = this.session
+    const hits = [...ss.hits]
     this.session = null
     if (hits.length) this.store.remove(hits) // one transaction — one undo
+    if (ss.partial) this.store.endBatch() // msps: borracha parcial
     this.requestRender()
   }
 
@@ -1924,6 +1960,17 @@ export class Editor {
       ctx.strokeRect(tl.x, tl.y, r.w * cam.z, r.h * cam.z)
     }
 
+    // msps: borracha parcial — o círculo do tamanho real da borracha, em vez do rastro
+    if (this.session?.type === 'erasing' && this.session.partial) {
+      const sp = this.pageToScreen(this.session.last.x, this.session.last.y)
+      ctx.strokeStyle = t.id === 'dark' ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.4)'
+      ctx.fillStyle = t.id === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.arc(sp.x, sp.y, ERASER_SIZES[this.eraserSize], 0, Math.PI * 2)
+      ctx.fill()
+      ctx.stroke()
+    } else
     // eraser trail
     if (this.session?.type === 'erasing' && this.session.trail.length > 2) {
       ctx.strokeStyle = t.id === 'dark' ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.25)'

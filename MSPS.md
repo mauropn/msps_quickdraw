@@ -40,11 +40,11 @@ npx vitest run packages/core
 | 1 | Tipo de nota "Escrita à mão" com a lib como veio | feita |
 | 2 | Ligar o MSPowerSearch neste fork | feita |
 | 3 | Papel de caderno: pautas presas ao papel (Estreito/Médio/Largo), margem vermelha — `paper.js` | feita |
-| 4 | Canetas (esferográfica, lápis) — `pens.js` + barra própria no msps_ui | feita (em teste) |
-| 5 | Canetas salvas (tipo + cor + espessura + opacidade, troca com um toque) | |
-| 6 | Borracha (parcial, traço inteiro, ponta-borracha da caneta) | |
+| 4 | Canetas (esferográfica, lápis) — `pens.js` + barra própria no msps_ui | feita |
+| 5 | Canetas salvas (tipo + cor + espessura + opacidade, troca com um toque) — só msps_ui + API (`/api/notes/preferences/handwriting-pens`), a lib não muda | feita |
+| 6 | Borracha (parcial, traço inteiro, ponta-borracha da caneta) — `erase.js` | feita (em teste) |
 | 7 | Performance (traço vivo fora do store, cache dos traços prontos, eventos previstos) | |
-| 8 | Acabamento (miniatura, impressão, simplificação/compactação dos traços) | |
+| 8 | Acabamento (miniatura, simplificação/compactação dos traços; impressão já adiantada) | |
 
 ## Recursos do fork
 
@@ -59,3 +59,9 @@ npx vitest run packages/core
   Esferográfica: fina, pouca variação com a pressão, pouco atraso. Lápis: mais largo, grão de
   grafite em pixels da tela, mais escuro com mais pressão (`pencilAlpha`). Hooks em `shapes.js`
   (`drawPath`, `inkReach`, `drawShape`) e em `editor.js` (`_beginDraw`, `setStyle`, `currentStyles`).
+- **Borracha parcial** (`src/erase.js`): `editor.setEraser({ mode: 'stroke' | 'partial', size: 's' | 'm' | 'l' })`.
+  Padrão da lib continua `'stroke'` (traço inteiro). Em `'partial'`, a borracha (círculo de raio fixo na
+  tela: 6/12/24 px) corta só os traços de tinta (draw/highlight) ao vivo, em pedaços; outras formas saem
+  inteiras. O gesto todo é um passo de desfazer. Traço girado vira pedaços sem rotação (mesmo lugar).
+  A ponta-borracha da caneta (`buttons & 32`) apaga com qualquer ferramenta. Hooks em `editor.js`
+  (`_pointerDown`, `_beginErase`/`_extendErase`/`_eraseAt`/`_endErase`, overlay).

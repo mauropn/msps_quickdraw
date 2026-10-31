@@ -42,6 +42,16 @@ export function penInkOptions(pen: PenId, width: number, opts?: { isPen?: boolea
 /** opacidade do grafite pela pressão média do traço */
 export function pencilAlpha(pts: number[], isPen: boolean): number
 
+// msps: borracha — 'stroke' apaga o traço inteiro (padrão da lib), 'partial' só o pedaço tocado
+export type EraserMode = 'stroke' | 'partial'
+export type EraserSizeId = 's' | 'm' | 'l'
+export const ERASER_MODES: EraserMode[]
+/** raio da borracha em px de tela */
+export const ERASER_SIZES: Record<EraserSizeId, number>
+export const ERASER_SIZE_IDS: EraserSizeId[]
+/** ponta-borracha da caneta (buttons & 32) */
+export function isPenEraser(e: { pointerType: string; buttons?: number; button?: number }): boolean
+
 export interface Camera { x: number; y: number; z: number }
 
 export interface Styles {
@@ -261,7 +271,7 @@ export interface EditorOptions {
 
 export type EditorEvent =
   | 'change' | 'history' | 'camera' | 'tool' | 'styles' | 'selection'
-  | 'theme' | 'grid' | 'edit' | 'scribbles' | 'penmode' | 'help' | 'paper'
+  | 'theme' | 'grid' | 'edit' | 'scribbles' | 'penmode' | 'help' | 'paper' | 'eraser'
 
 /**
  * The editor: camera, tools, selection, input and rendering over a Store.
@@ -313,6 +323,10 @@ export class Editor {
   setGrid(id: GridId): void
   /** msps: liga/ajusta o papel de caderno; null volta para a grade */
   setPaper(paper: Paper | null): void
+  /** msps: modo e tamanho da borracha */
+  setEraser(opts: { mode?: EraserMode; size?: EraserSizeId }): void
+  eraserMode: EraserMode
+  eraserSize: EraserSizeId
   setReadonly(ro: boolean): void
   setPenMode(on: boolean): void
   setStyle<K extends keyof Styles>(key: K, value: Styles[K]): void
