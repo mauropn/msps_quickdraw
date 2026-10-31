@@ -10,6 +10,7 @@ import {
   scaleShape, textLayout, noteLayout, NOTE_W, sampleLinePts, resetTextLayouts,
 } from './shapes.js'
 import { boundsUnion, boundsExpand, boundsContain, clamp, rotWith } from './geometry.js'
+import { drawPaper, normalizePaper } from './paper.js' // msps: papel de caderno
 
 const ZOOM_MIN = 0.05
 const ZOOM_MAX = 8
@@ -35,11 +36,13 @@ const bendMidpoint = (pr) => {
 }
 
 export class Editor {
-  constructor({ container, store, theme = 'light', grid = 'lines', readonly = false, camera, styles, geoKind } = {}) {
+  constructor({ container, store, theme = 'light', grid = 'lines', readonly = false, camera, styles, geoKind, paper } = {}) {
     this.container = container
     this.store = store || new Store()
     this.theme = themeOf(theme)
     this.grid = GRID_IDS.includes(grid) ? grid : 'lines'
+    // msps: papel de caderno; quando definido, substitui a grade (ver paper.js)
+    this.paper = normalizePaper(paper)
     this.readonly = !!readonly
     this.camera = camera || { x: 0, y: 0, z: 1 }
     this.styles = { ...DEFAULT_STYLES, ...(styles || {}) }
@@ -336,6 +339,12 @@ export class Editor {
     this.grid = id
     this.requestRender()
     this.emit('grid')
+  }
+  // msps: papel de caderno ({ lines, margin, marginX }) ou null para voltar à grade
+  setPaper(paper) {
+    this.paper = normalizePaper(paper)
+    this.requestRender()
+    this.emit('paper')
   }
   setReadonly(ro) {
     this.readonly = !!ro
@@ -1692,6 +1701,8 @@ export class Editor {
   // next level's coarse lattice.
   // W/H are device px; the ctx must be untransformed.
   _drawGrid(ctx, cam, W, H, dpr) {
+    // msps: o papel de caderno (pautas presas ao papel) substitui a grade adaptativa
+    if (this.paper) return drawPaper(ctx, cam, W, H, dpr, this.paper, this.theme)
     if (this.grid === 'none' || !(cam.z > 0)) return
     // point-like marks (dots, crosses) carry less ink, so they use the darker ramp
     const points = this.grid === 'dots' || this.grid === 'crosses'

@@ -11,6 +11,8 @@ export {
 } from './palette.js'
 export { pageBounds, localBounds, drawShape, hitShape } from './shapes.js'
 export { strokeOutline, inkOptions } from './freehand.js'
+// msps: papel de caderno
+export { PAPER_SPACINGS, PAPER_SPACING_IDS, PAPER_MARGIN_X, normalizePaper } from './paper.js'
 
 import { Editor } from './editor.js'
 import { buildUI } from './ui.js'

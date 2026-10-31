@@ -19,6 +19,21 @@ export type ThemeId = 'light' | 'dark'
 export type GridId = 'none' | 'lines' | 'ruled' | 'dots' | 'crosses' | 'iso'
 
 export interface Bounds { x: number; y: number; w: number; h: number }
+
+// msps: papel de caderno (pautas presas ao papel, margem à esquerda)
+export type PaperSpacingId = 'narrow' | 'medium' | 'wide'
+export interface Paper {
+  /** 'none' = só a margem; o padrão é 'medium' */
+  lines?: 'none' | PaperSpacingId
+  /** margem vertical vermelha à esquerda (padrão true) */
+  margin?: boolean
+  /** posição da margem em px do papel (padrão PAPER_MARGIN_X) */
+  marginX?: number
+}
+export const PAPER_SPACINGS: Record<PaperSpacingId, number>
+export const PAPER_SPACING_IDS: PaperSpacingId[]
+export const PAPER_MARGIN_X: number
+export function normalizePaper(paper: Paper | null | undefined): Required<Paper> | null
 export interface Camera { x: number; y: number; z: number }
 
 export interface Styles {
@@ -230,11 +245,13 @@ export interface EditorOptions {
   camera?: Camera
   styles?: Partial<Styles>
   geoKind?: GeoId
+  /** msps: papel de caderno; quando definido, substitui a grade */
+  paper?: Paper | null
 }
 
 export type EditorEvent =
   | 'change' | 'history' | 'camera' | 'tool' | 'styles' | 'selection'
-  | 'theme' | 'grid' | 'edit' | 'scribbles' | 'penmode' | 'help'
+  | 'theme' | 'grid' | 'edit' | 'scribbles' | 'penmode' | 'help' | 'paper'
 
 /**
  * The editor: camera, tools, selection, input and rendering over a Store.
@@ -249,6 +266,8 @@ export class Editor {
   store: Store
   theme: Theme
   grid: GridId
+  /** msps: papel de caderno ativo (null = grade normal) */
+  paper: Required<Paper> | null
   readonly: boolean
   camera: Camera
   styles: Styles
@@ -282,6 +301,8 @@ export class Editor {
   setTheme(id: ThemeId | string): void
   /** 'none' | 'lines' | 'ruled' | 'dots' | 'crosses' | 'iso' — the backdrop behind the drawing. */
   setGrid(id: GridId): void
+  /** msps: liga/ajusta o papel de caderno; null volta para a grade */
+  setPaper(paper: Paper | null): void
   setReadonly(ro: boolean): void
   setPenMode(on: boolean): void
   setStyle<K extends keyof Styles>(key: K, value: Styles[K]): void
