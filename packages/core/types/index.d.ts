@@ -54,6 +54,11 @@ export function isPenEraser(e: { pointerType: string; buttons?: number; button?:
 
 // msps: escrita rápida — de quanto em quanto tempo (ms) o traço em andamento vai para o store
 export const LIVE_COMMIT_MS: number
+/** msps: miniatura (data URL webp/jpeg) do começo da página; null se vazio ou sem canvas */
+export function renderThumbnail(
+  editor: Editor,
+  opts?: { width?: number; height?: number; theme?: ThemeId | string; quality?: number; maxZoom?: number; minZoom?: number },
+): string | null
 /** msps: contorno incremental de um traço que cresce; igual a strokeOutline com as mesmas opções */
 export function createLiveOutline(options?: Record<string, unknown>): {
   /** mutableFrom: primeiro ponto cru que ainda pode mudar (padrão: o último) */

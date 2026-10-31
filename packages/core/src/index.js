@@ -19,6 +19,7 @@ export { PEN_IDS, penInkOptions, pencilAlpha } from './pens.js'
 export { ERASER_MODES, ERASER_SIZES, ERASER_SIZE_IDS, isPenEraser } from './erase.js'
 export { LIVE_COMMIT_MS } from './fastink.js' // msps: escrita rápida
 export { createLiveOutline } from './liveink.js' // msps: contorno incremental
+export { renderThumbnail } from './thumbnail.js' // msps: miniatura
 
 import { Editor } from './editor.js'
 import { buildUI } from './ui.js'

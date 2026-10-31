@@ -44,7 +44,7 @@ npx vitest run packages/core
 | 5 | Canetas salvas (tipo + cor + espessura + opacidade, troca com um toque) — só msps_ui + API (`/api/notes/preferences/handwriting-pens`), a lib não muda | feita |
 | 6 | Borracha (parcial, traço inteiro, ponta-borracha da caneta) — `erase.js` | feita (em teste) |
 | 7 | Performance (traço vivo fora do store, cache da tela, contorno incremental, eventos previstos, diagnóstico) — `fastink.js`, `liveink.js`, `diagnostics.js` | feita (em teste) |
-| 8 | Acabamento (miniatura, simplificação/compactação dos traços; impressão já adiantada) | |
+| 8 | Acabamento (miniatura — `thumbnail.js`; compactação sem perda dos pontos no MSPowerSearch; impressão já adiantada) | feita (em teste) |
 
 ## Recursos do fork
 
@@ -78,3 +78,10 @@ npx vitest run packages/core
 - **Baixa latência** (opção `lowLatency`): canvas com `desynchronized: true` onde o navegador suporta.
 - **Diagnóstico** (`src/diagnostics.js`, `editor.setDiagnostics(true)`): painel no canto com quadros/s, tempo
   do quadro, caneta→quadro e tamanho do traço. No MSPowerSearch: `?hwdiag=1` na URL.
+- **Miniatura** (`src/thumbnail.js`, `renderThumbnail(editor, opts)`): data URL (webp; jpeg onde o navegador não
+  gera webp) do começo da página — largura do conteúdo cabendo na imagem, corte embaixo; com papel, encosta na
+  borda esquerda dele (margem aparece). Desenha com o tema pedido (padrão claro) e devolve o do editor.
+  O MSPowerSearch grava a miniatura na nota (`thumb`, antes do `snapshot`) e a API a devolve na lista.
+- **Sem simplificação de traços:** o perfect-freehand suaviza com `streamline` ponto a ponto, então tirar pontos
+  muda o desenho do traço. A compactação é feita sem perda no MSPowerSearch (`ptsV`: varint zigzag das
+  diferenças, ~50% menor que o `ptsZ`, que continua sendo lido).
